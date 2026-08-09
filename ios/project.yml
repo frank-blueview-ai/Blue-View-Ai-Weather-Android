@@ -34,5 +34,6 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: "LDYV28TV5T"
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: ""

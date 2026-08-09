@@ -1,6 +1,7 @@
 package ai.blueview.weather.ui.components
 
 import android.annotation.SuppressLint
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.*
@@ -13,51 +14,75 @@ private fun radarHtml(lat: Double, lon: Double, city: String): String {
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%;background:#0b0e1c}
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#map{width:100%;height:100%;background:#0b0e1c}
 .leaflet-control-attribution{font-size:9px!important;opacity:0.4!important}
 </style></head><body><div id="map"></div>
 <script>
 (function(){
-  var map=L.map('map',{zoomControl:true}).setView([$lat,$lon],7);
+  var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([$lat,$lon],7);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'©OSM ©CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+    {attribution:'&copy;OSM &copy;CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
   var radar=null,lastT=null;
   function load(){
     fetch('https://api.rainviewer.com/public/weather-maps.json')
-      .then(r=>r.json()).then(d=>{
+      .then(function(r){return r.json();}).then(function(d){
         if(!d.radar||!d.radar.past||!d.radar.past.length)return;
         var f=d.radar.past[d.radar.past.length-1];
         if(f.time===lastT)return;lastT=f.time;
         if(radar)map.removeLayer(radar);
         radar=L.tileLayer(d.host+f.path+'/256/{z}/{x}/{y}/4/1_1.png',
           {opacity:0.65,zIndex:10}).addTo(map);
-      }).catch(()=>{});
+      }).catch(function(){});
   }
-  load();setInterval(load,300000);
+  load();
+  setInterval(load,300000);
   L.circleMarker([$lat,$lon],{color:'#52bee8',fillColor:'#52bee8',
     fillOpacity:0.9,radius:8,weight:2}).addTo(map)
     .bindTooltip('$citySafe',{direction:'top',offset:[0,-10]});
 })();
-</script></body></html>""".replace("\$lat","$lat").replace("\$lon","$lon")
-        .replace("\$citySafe", citySafe)
+</script></body></html>"""
 }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun RadarWebView(lat: Double, lon: Double, city: String, modifier: Modifier = Modifier) {
-    val html = remember(lat, lon) { radarHtml(lat, lon, city) }
+    // Recompute HTML only when coordinates actually change
+    val html = remember(lat, lon, city) { radarHtml(lat, lon, city) }
+
     AndroidView(
         modifier = modifier,
-        factory  = { ctx ->
+        factory = { ctx ->
             WebView(ctx).apply {
-                webViewClient = WebViewClient()
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled  = true
-                loadDataWithBaseURL("https://weatherdock.local/", html, "text/html", "UTF-8", null)
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView, request: WebResourceRequest
+                    ) = false
+                }
+                with(settings) {
+                    javaScriptEnabled      = true
+                    domStorageEnabled      = true
+                    useWideViewPort        = true
+                    loadWithOverviewMode   = true
+                    setSupportZoom(false)
+                }
+                // Load once in factory — tag tracks what is currently loaded
+                tag = ""
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL("https://weatherdock.local/", html, "text/html", "UTF-8", null)
+            // Only reload when the HTML actually changed (city/coordinates changed)
+            if (webView.tag as? String != html) {
+                webView.tag = html
+                webView.loadDataWithBaseURL(
+                    "https://blueview.ai/",
+                    html,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
         }
     )
 }

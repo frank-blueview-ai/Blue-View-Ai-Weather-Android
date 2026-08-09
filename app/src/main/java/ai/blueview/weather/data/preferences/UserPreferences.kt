@@ -25,11 +25,11 @@ class UserPreferencesRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private object Keys {
-        val CITY       = stringKey("city")
-        val UNITS      = stringKey("units")
+        val CITY       = stringPreferencesKey("city")
+        val UNITS      = stringPreferencesKey("units")
         val LAT        = doublePreferencesKey("lat")
         val LON        = doublePreferencesKey("lon")
-        val CITY_LABEL = stringKey("city_label")
+        val CITY_LABEL = stringPreferencesKey("city_label")
     }
 
     val prefs: Flow<UserPrefs> = context.dataStore.data.map { p ->

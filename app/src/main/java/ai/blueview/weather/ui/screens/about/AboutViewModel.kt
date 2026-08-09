@@ -6,7 +6,6 @@ import ai.blueview.weather.BuildConfig
 import ai.blueview.weather.data.update.UpdateChecker
 import ai.blueview.weather.data.update.UpdateState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,23 +25,6 @@ class AboutViewModel @Inject constructor(
         viewModelScope.launch {
             _update.value = UpdateState.Checking
             _update.value = checker.checkLatest(BuildConfig.VERSION_NAME)
-        }
-    }
-
-    fun startDownload(url: String, version: String) {
-        viewModelScope.launch {
-            val id = checker.startDownload(url, version)
-            _update.value = UpdateState.Downloading(id)
-            pollUntilDone(id)
-        }
-    }
-
-    private suspend fun pollUntilDone(downloadId: Long) {
-        while (true) {
-            delay(1500)
-            val result = checker.pollDownload(downloadId) ?: continue
-            _update.value = result
-            break
         }
     }
 

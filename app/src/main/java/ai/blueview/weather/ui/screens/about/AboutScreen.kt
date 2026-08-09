@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.blueview.weather.BuildConfig
@@ -31,25 +30,6 @@ fun AboutScreen(
     val context = LocalContext.current
     val update by viewModel.update.collectAsStateWithLifecycle()
 
-    // Trigger system installer when APK is ready
-    LaunchedEffect(update) {
-        if (update is UpdateState.ReadyToInstall) {
-            val file = (update as UpdateState.ReadyToInstall).file
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file
-            )
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            viewModel.reset()
-        }
-    }
-
     fun openUrl(url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
@@ -57,7 +37,7 @@ fun AboutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title  = { Text("About", color = TextPrimary) },
+                title = { Text("About", color = TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Back", tint = TextSecondary)
@@ -90,11 +70,9 @@ fun AboutScreen(
                 textAlign = TextAlign.Center)
 
             Spacer(Modifier.height(4.dp))
-
-            // Update button
-            UpdateSection(update, viewModel)
-
+            UpdateSection(update, viewModel, ::openUrl)
             Spacer(Modifier.height(4.dp))
+
             HorizontalDivider(color = TextMuted.copy(alpha = 0.3f))
             Spacer(Modifier.height(4.dp))
 
@@ -122,19 +100,23 @@ fun AboutScreen(
 }
 
 @Composable
-private fun UpdateSection(update: UpdateState, viewModel: AboutViewModel) {
+private fun UpdateSection(
+    update: UpdateState,
+    viewModel: AboutViewModel,
+    openUrl: (String) -> Unit
+) {
     when (update) {
         is UpdateState.Idle -> {
             OutlinedButton(
-                onClick = viewModel::checkForUpdate,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = BlueAccent),
+                onClick  = viewModel::checkForUpdate,
+                colors   = ButtonDefaults.outlinedButtonColors(contentColor = BlueAccent),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Check for Updates") }
         }
         is UpdateState.Checking -> {
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 CircularProgressIndicator(
@@ -146,12 +128,15 @@ private fun UpdateSection(update: UpdateState, viewModel: AboutViewModel) {
         }
         is UpdateState.UpToDate -> {
             Text("✓  You're on the latest version",
-                color = SuccessGreen, style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = viewModel::reset) { Text("Check again", color = TextMuted) }
+                color = SuccessGreen,
+                style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = viewModel::reset) {
+                Text("Check again", color = TextMuted)
+            }
         }
         is UpdateState.Available -> {
             Card(
-                colors = CardDefaults.cardColors(containerColor = NavyCard),
+                colors   = CardDefaults.cardColors(containerColor = NavyCard),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -159,34 +144,26 @@ private fun UpdateSection(update: UpdateState, viewModel: AboutViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("Update available: ${update.version}",
-                        color = BlueAccent, style = MaterialTheme.typography.titleSmall)
+                        color = BlueAccent,
+                        style = MaterialTheme.typography.titleSmall)
+                    Text("Tap below to download — your browser will open and Android will offer to install it when the download finishes.",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
                     Button(
-                        onClick = { viewModel.startDownload(update.url, update.version) },
-                        colors  = ButtonDefaults.buttonColors(containerColor = BlueAccent),
+                        onClick  = { openUrl(update.url) },
+                        colors   = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Download & Install", color = NavyDeep) }
+                    ) { Text("Download ${update.version}", color = NavyDeep) }
                 }
             }
         }
-        is UpdateState.Downloading -> {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                LinearProgressIndicator(color = BlueAccent, modifier = Modifier.fillMaxWidth())
-                Text("Downloading update…", color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        is UpdateState.ReadyToInstall -> {
-            // LaunchedEffect handles the install trigger; show brief message
-            Text("Opening installer…", color = TextSecondary)
-        }
         is UpdateState.Error -> {
-            Text("⚠ ${update.message}", color = ErrorRed,
+            Text("⚠  ${update.message}",
+                color = ErrorRed,
                 style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = viewModel::reset) { Text("Try again", color = TextMuted) }
+            TextButton(onClick = viewModel::reset) {
+                Text("Try again", color = TextMuted)
+            }
         }
     }
 }
@@ -204,9 +181,7 @@ private fun AboutRow(label: String, value: String) {
 @Composable
 private fun AboutLinkRow(label: String, value: String, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier              = Modifier.fillMaxWidth().clickable(onClick = onClick),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically
     ) {

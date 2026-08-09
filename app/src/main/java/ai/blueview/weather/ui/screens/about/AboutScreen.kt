@@ -8,22 +8,50 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ai.blueview.weather.BuildConfig
+import ai.blueview.weather.data.update.UpdateState
 import ai.blueview.weather.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    viewModel: AboutViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
+    val update by viewModel.update.collectAsStateWithLifecycle()
+
+    // Trigger system installer when APK is ready
+    LaunchedEffect(update) {
+        if (update is UpdateState.ReadyToInstall) {
+            val file = (update as UpdateState.ReadyToInstall).file
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            viewModel.reset()
+        }
+    }
 
     fun openUrl(url: String) {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://$url")))
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
     Scaffold(
@@ -53,7 +81,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 style     = MaterialTheme.typography.headlineLarge,
                 color     = TextPrimary,
                 textAlign = TextAlign.Center)
-            Text("Version 1.0.0",
+            Text("Version ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary)
             Text("Floating weather panel with live radar\n7-day forecast · Hourly drill-down",
@@ -61,18 +89,23 @@ fun AboutScreen(onBack: () -> Unit) {
                 color     = BlueAccent,
                 textAlign = TextAlign.Center)
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
+
+            // Update button
+            UpdateSection(update, viewModel)
+
+            Spacer(Modifier.height(4.dp))
             HorizontalDivider(color = TextMuted.copy(alpha = 0.3f))
             Spacer(Modifier.height(4.dp))
 
-            AboutRow("Author",   "Frank Perez")
-            AboutLinkRow("Email",    "frank@blueview.ai")   { openUrl("mailto:frank@blueview.ai") }
-            AboutLinkRow("OS",       "bvos.blueview.ai")    { openUrl("bvos.blueview.ai") }
-            AboutLinkRow("Paper",    "mypapertrail.co")     { openUrl("mypapertrail.co") }
-            AboutLinkRow("Read2Me",  "read2me.co")          { openUrl("read2me.co") }
-            AboutLinkRow("Web",      "blueview.ai")         { openUrl("blueview.ai") }
+            AboutRow("Author",  "Frank Perez")
+            AboutLinkRow("Email",   "frank@blueview.ai")  { openUrl("mailto:frank@blueview.ai") }
+            AboutLinkRow("OS",      "bvos.blueview.ai")   { openUrl("https://bvos.blueview.ai") }
+            AboutLinkRow("Paper",   "mypapertrail.co")    { openUrl("https://mypapertrail.co") }
+            AboutLinkRow("Read2Me", "read2me.co")         { openUrl("https://read2me.co") }
+            AboutLinkRow("Web",     "blueview.ai")        { openUrl("https://blueview.ai") }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             HorizontalDivider(color = TextMuted.copy(alpha = 0.3f))
             Spacer(Modifier.height(4.dp))
 
@@ -84,6 +117,76 @@ fun AboutScreen(onBack: () -> Unit) {
                 style     = MaterialTheme.typography.bodyMedium,
                 color     = TextMuted,
                 textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun UpdateSection(update: UpdateState, viewModel: AboutViewModel) {
+    when (update) {
+        is UpdateState.Idle -> {
+            OutlinedButton(
+                onClick = viewModel::checkForUpdate,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = BlueAccent),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Check for Updates") }
+        }
+        is UpdateState.Checking -> {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    color = BlueAccent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Checking…", color = TextSecondary)
+            }
+        }
+        is UpdateState.UpToDate -> {
+            Text("✓  You're on the latest version",
+                color = SuccessGreen, style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = viewModel::reset) { Text("Check again", color = TextMuted) }
+        }
+        is UpdateState.Available -> {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = NavyCard),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Update available: ${update.version}",
+                        color = BlueAccent, style = MaterialTheme.typography.titleSmall)
+                    Button(
+                        onClick = { viewModel.startDownload(update.url, update.version) },
+                        colors  = ButtonDefaults.buttonColors(containerColor = BlueAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Download & Install", color = NavyDeep) }
+                }
+            }
+        }
+        is UpdateState.Downloading -> {
+            Column(
+                Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                LinearProgressIndicator(color = BlueAccent, modifier = Modifier.fillMaxWidth())
+                Text("Downloading update…", color = TextSecondary,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        is UpdateState.ReadyToInstall -> {
+            // LaunchedEffect handles the install trigger; show brief message
+            Text("Opening installer…", color = TextSecondary)
+        }
+        is UpdateState.Error -> {
+            Text("⚠ ${update.message}", color = ErrorRed,
+                style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = viewModel::reset) { Text("Try again", color = TextMuted) }
         }
     }
 }
@@ -105,7 +208,7 @@ private fun AboutLinkRow(label: String, value: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment     = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium,
             color = TextMuted, modifier = Modifier.width(80.dp))

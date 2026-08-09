@@ -7,6 +7,8 @@ import android.os.Environment
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -46,20 +48,20 @@ class UpdateChecker @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun checkLatest(currentVersion: String): UpdateState {
-        return try {
+    suspend fun checkLatest(currentVersion: String): UpdateState = withContext(Dispatchers.IO) {
+        try {
             val request = Request.Builder()
                 .url(RELEASES_API)
                 .header("Accept", "application/vnd.github+json")
                 .build()
             val body = okHttpClient.newCall(request).execute().use { it.body?.string() }
-                ?: return UpdateState.Error("Empty response")
+                ?: return@withContext UpdateState.Error("Empty response")
             val release = json.decodeFromString<GithubRelease>(body)
             val latest = release.tagName.trimStart('v')
             val current = currentVersion.trimStart('v')
             if (isNewer(latest, current)) {
                 val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
-                    ?: return UpdateState.Error("No APK in release")
+                    ?: return@withContext UpdateState.Error("No APK in release")
                 UpdateState.Available(release.tagName, apkAsset.downloadUrl)
             } else {
                 UpdateState.UpToDate

@@ -19,14 +19,30 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val ksFile = rootProject.file("keystore/blueview-release.jks")
+            if (ksFile.exists()) {
+                storeFile     = ksFile
+                storePassword = "blueview2026"
+                keyAlias      = "blueview"
+                keyPassword   = "blueview2026"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled   = true
             isShrinkResources = true
+            signingConfig     = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

@@ -14,40 +14,39 @@ private fun radarHtml(lat: Double, lon: Double, city: String, tileUrl: String): 
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="leaflet.css"/>
+<script src="leaflet.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body, #map { width:100%; height:100%; background:#0b0e1c; }
-.leaflet-control-attribution { font-size:9px !important; opacity:0.4 !important; }
+* { margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; background: #0b0e1c; }
+#map { width: 100%; height: 100%; }
+.leaflet-control-attribution { font-size: 9px !important; opacity: 0.4 !important; }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <script>
-(function() {
-  var map = L.map('map', { zoomControl: true }).setView([$lat, $lon], 7);
+var map = L.map('map', { zoomControl: true }).setView([$lat, $lon], 7);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OSM &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
-  }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OSM &copy; CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
 
-  L.tileLayer('$tileUrl', {
-    opacity: 0.65,
-    zIndex: 10
-  }).addTo(map);
+L.tileLayer('$tileUrl', {
+  opacity: 0.65,
+  zIndex: 10
+}).addTo(map);
 
-  L.circleMarker([$lat, $lon], {
-    color: '#52bee8',
-    fillColor: '#52bee8',
-    fillOpacity: 0.9,
-    radius: 8,
-    weight: 2
-  }).addTo(map).bindTooltip('$citySafe', { direction: 'top', offset: [0, -10] });
-})();
+L.circleMarker([$lat, $lon], {
+  color: '#52bee8',
+  fillColor: '#52bee8',
+  fillOpacity: 0.9,
+  radius: 8,
+  weight: 2
+}).addTo(map).bindTooltip('$citySafe', { direction: 'top', offset: [0, -10] });
 </script>
 </body>
 </html>"""
@@ -78,6 +77,7 @@ fun RadarWebView(
                     domStorageEnabled    = true
                     useWideViewPort      = true
                     loadWithOverviewMode = true
+                    allowFileAccess      = true   // required to load assets
                     setSupportZoom(false)
                 }
                 tag = ""
@@ -86,8 +86,10 @@ fun RadarWebView(
         update = { webView ->
             if (webView.tag as? String != html) {
                 webView.tag = html
+                // Base URL points to assets folder — leaflet.css and leaflet.js
+                // are resolved relative to this, no CDN needed
                 webView.loadDataWithBaseURL(
-                    "https://unpkg.com/",  // same origin as Leaflet CDN — avoids CORS issues
+                    "file:///android_asset/",
                     html,
                     "text/html",
                     "UTF-8",
